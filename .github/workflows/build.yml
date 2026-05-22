@@ -1,0 +1,107 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 0.1.0-beta)'
+        required: true
+        default: '0.1.0-beta'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: whoo-inject-windows
+          path: |
+            release/*.exe
+            release/*.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: whoo-inject-windows
+          path: ./artifacts
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Whoo Inject System v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## Whoo Inject System v${{ steps.version.outputs.VERSION }}
+            
+            ### 📦 Release Notes
+            
+            **Status:** BETA UNRELEASED
+            
+            ### Changes
+            - Initial beta release
+            - Dark futuristic gaming UI
+            - Steam game management interface
+            - Shared accounts browser
+            - Settings panel with toggle controls
+            - Custom draggable titlebar
+            - Animated page transitions
+            
+            ### ⚠️ Important
+            This is a **BETA** release for internal testing only.
+            
+            ### 📥 Installation
+            1. Download the `.exe` installer below
+            2. Run the installer
+            3. Launch "Whoo Inject System" from Start Menu or Desktop
+            
+            ### 🔑 Requirements
+            - Windows 10/11 (64-bit)
+            - Valid license key
+            - Steam installed
+            
+            ---
+            *Built with Electron + React + TailwindCSS*
+          draft: true
+          prerelease: true
+          files: |
+            ./artifacts/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
